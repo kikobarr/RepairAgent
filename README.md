@@ -355,10 +355,7 @@ GitBugsJava is another dataset for program repair evaluation.
 
  4. Use the same analysis scripts as part 1 (D4j replication) to analyse the results of the experiments.
 
-## 💬 VI. Help Us Improve RepairAgent
+## 💬 VI. Help Improve RepairAgent
 
-If you use RepairAgent, we encourage you to report any issues, bugs, or documentation gaps. We are committed to addressing your concerns promptly.
-
-You can raise an issue directly in this repository, or for any queries, feel free to [email me](mailto:fi_bouzenia@esi.dz).
-
+If you use RepairAgent, we encourage you to report any issues, bugs, or documentation gaps. [Please find the original project here]([url](https://github.com/sola-st/RepairAgent)).
 --- 
