@@ -357,5 +357,6 @@ GitBugsJava is another dataset for program repair evaluation.
 
 ## 💬 VI. Help Improve RepairAgent
 
-If you use RepairAgent, we encourage you to report any issues, bugs, or documentation gaps. [Please find the original project here]([url](https://github.com/sola-st/RepairAgent)).
+If you use RepairAgent, we encourage you to report any issues, bugs, or documentation gaps. Please find the original project here: https://github.com/sola-st/RepairAgent
+
 --- 
