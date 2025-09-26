@@ -1,28 +1,20 @@
-// For format details, see https://aka.ms/devcontainer.json. For config options, see the
-// README at: https://github.com/devcontainers/templates/tree/main/src/ubuntu
 {
-	"name": "Ubuntu",
-	// Or use a Dockerfile or Docker Compose file. More info: https://containers.dev/guide/dockerfile
-	"image": "mcr.microsoft.com/devcontainers/base:jammy",
-	"features": {
-		"ghcr.io/devcontainers/features/python:1": {
-			"installTools": true,
-			"version": "3.10"
-		}
-	},
-
-	// Features to add to the dev container. More info: https://containers.dev/features.
-	// "features": {},
-
-	// Use 'forwardPorts' to make a list of ports inside the container available locally.
-	// "forwardPorts": [],
-
-	// Use 'postCreateCommand' to run commands after the container is created.
-	"postCreateCommand": "sudo apt-get update && sudo apt-get install -y openjdk-11-jdk subversion dos2unix && cd repair_agent/defects4j && sudo apt-get install -y cpanminus && cpanm --installdeps . && ./init.sh && sudo apt-get install -y libdbi-perl"
-
-	// Configure tool-specific properties.
-	// "customizations": {},
-
-	// Uncomment to connect as root instead. More info: https://aka.ms/dev-containers-non-root.
-	// "remoteUser": "root"
+  "name": "Ubuntu",
+  "image": "mcr.microsoft.com/devcontainers/base:jammy",
+  "features": {
+    "ghcr.io/devcontainers/features/python:1": {
+      "installTools": true,
+      "version": "3.10"
+    }
+  },
+  "mounts": [
+    "type=volume,source=perl5-repairagent,target=/home/vscode/perl5"
+  ],
+  "containerEnv": {
+    "PERL5LIB": "/home/vscode/perl5/lib/perl5",
+    "PATH": "/home/vscode/perl5/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+    "PERL_MM_OPT": "INSTALL_BASE=/home/vscode/perl5",
+    "PERL_MB_OPT": "--install_base /home/vscode/perl5"
+  },
+  "postCreateCommand": "bash -lc 'set -e && sudo apt-get update && sudo apt-get install -y openjdk-11-jdk subversion build-essential gcc make libdbi-perl cpanminus && sudo mkdir -p /home/vscode/perl5/bin /home/vscode/perl5/lib/perl5 && sudo chown -R vscode:vscode /home/vscode/perl5 && find . -type f -name \"*.sh\" -not -path \"./.git/*\" -print0 | xargs -0 -r perl -i -pe \"s/\\r$//\" && cpanm --local-lib=$HOME/perl5 local::lib && eval \"$(perl -I $HOME/perl5/lib/perl5 -Mlocal::lib)\" && cd repair_agent/defects4j && cpanm --installdeps . -v && bash ./init.sh'"
 }
