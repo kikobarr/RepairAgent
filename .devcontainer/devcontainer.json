@@ -16,5 +16,8 @@
     "PERL_MM_OPT": "INSTALL_BASE=/home/vscode/perl5",
     "PERL_MB_OPT": "--install_base /home/vscode/perl5"
   },
-  "postCreateCommand": "bash -lc 'set -e && sudo apt-get update && sudo apt-get install -y openjdk-11-jdk subversion build-essential gcc make libdbi-perl cpanminus && sudo mkdir -p /home/vscode/perl5/bin /home/vscode/perl5/lib/perl5 && sudo chown -R vscode:vscode /home/vscode/perl5 && find . -type f -name \"*.sh\" -not -path \"./.git/*\" -print0 | xargs -0 -r perl -i -pe \"s/\\r$//\" && cpanm --local-lib=$HOME/perl5 local::lib && eval \"$(perl -I $HOME/perl5/lib/perl5 -Mlocal::lib)\" && cd repair_agent/defects4j && cpanm --installdeps . -v && bash ./init.sh'"
+  "remoteEnv": {
+    "PATH": "${containerEnv:PATH}:/usr/local/python/3.10.18/bin"
+  },
+"postCreateCommand": "bash -lc 'set -e && sudo apt-get update && sudo apt-get install -y openjdk-11-jdk subversion build-essential gcc make libdbi-perl cpanminus dos2unix && sudo mkdir -p /home/vscode/perl5/bin /home/vscode/perl5/lib/perl5 && sudo chown -R vscode:vscode . && find . -type f -name \"*.sh\" -not -path \"./.git/*\" -print0 | xargs -0 -r perl -i -pe \"s/\\r$//\" && cpanm --local-lib=$HOME/perl5 local::lib && eval \"$(perl -I $HOME/perl5/lib/perl5 -Mlocal::lib)\" && cd repair_agent/defects4j && cpanm --installdeps . -v && bash ./init.sh && cd .. && find defects4j -type f \\( -path \"defects4j/framework/bin/*\" -o -name \"*.pl\" -o -name \"*.pm\" -o -name \"*.sh\" \\) -print0 | xargs -0 -r dos2unix && git config --global core.autocrlf input'"
 }

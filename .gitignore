@@ -169,6 +169,3 @@ repair_agent/logs/
 repair_agent/exception_files.txt
 repair_agent/parsing_erros_responses.txt
 repair_agent/response_content.txt
-
-# Ignore local clone of Defects4J
-repair_agent/defects4j/

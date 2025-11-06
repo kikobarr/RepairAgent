@@ -14,7 +14,7 @@ python3 construct_commands_descriptions.py
 
 input="$1"
 experiment_file="$2"
-model="${3:-gpt-4o-mini}"  # Use $3 if given, otherwise default to gpt-4o-mini
+model="${3:-gpt-4o-mini}"  # Use $3 if given, otherwise default to gpt-4o-  mini
 
 dos2unix "$input"  # Convert file to Unix line endings (if needed)
 
