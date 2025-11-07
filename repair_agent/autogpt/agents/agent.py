@@ -250,7 +250,7 @@ class Agent(BaseAgent):
                     mph.write(mutant_prompt)
                 
                 # Asking main agent for mutants
-                mutants = query_for_mutants(mutant_prompt)
+                mutants = query_for_mutants(mutant_prompt, self.config.fast_llm)
                 
                 exps = self.exps
                 existing_mutants = []
