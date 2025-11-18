@@ -5,11 +5,40 @@ from reportlab.pdfgen import canvas
 
 all_correctly_fixed = []
 detailed_fixed_main = []
+
+
 def count_suggested_fixes(log_content):
     chat_sequences = log_content.split("============== ChatSequence ==============")
     last_sequence = chat_sequences[-1]
     num_suggested_fixes = last_sequence.count("###Fix:")
     return num_suggested_fixes
+
+
+def has_bug_localization(log_content):
+    """Return True when the log contains explicit buggy line localization info."""
+    localization_markers = [
+        "The bug is located at exactly these lines numbers",
+        "The bug is located at exactly these lines numbers or around them",
+    ]
+    return any(marker in log_content for marker in localization_markers)
+
+
+def next_results_filename(base_name, extension):
+    """
+    Return the first available filename for experiment summaries.
+    Example: base='experiment_7_results', ext='.txt' -> experiment_7_results.txt,
+    then experiment_7_results_1.txt, etc.
+    """
+    candidate = f"{base_name}{extension}"
+    if not os.path.exists(candidate):
+        return candidate
+
+    suffix = 1
+    while True:
+        candidate = f"{base_name}_{suffix}{extension}"
+        if not os.path.exists(candidate):
+            return candidate
+        suffix += 1
 
 def analyze_experiment(experiment_folder):
     logs_folder = os.path.join(experiment_folder, 'logs')
@@ -17,7 +46,7 @@ def analyze_experiment(experiment_folder):
     num_log_files = len(log_files)
 
     table = PrettyTable()
-    table.field_names = ["Log File", "Correctly Fixed", "Suggested Fixes", "Number of Queries"]
+    table.field_names = ["Log File", "Correctly Fixed", "Localized", "Suggested Fixes", "Number of Queries"]
     table.align["Log File"] = "l"
 
     correctly_fixed_bugs = 0
@@ -41,6 +70,8 @@ def analyze_experiment(experiment_folder):
             num_suggested_fixes = count_suggested_fixes(log_content)
             total_suggested_fixes += num_suggested_fixes
 
+            bug_localized = has_bug_localization(log_content)
+
             # Extract suggested fixes
             chat_sequences = log_content.split("============== ChatSequence ==============")
             last_sequence = chat_sequences[-1]
@@ -50,7 +81,13 @@ def analyze_experiment(experiment_folder):
             all_suggested_fixes.append((log_file.replace("prompt_history_",""), suggested_fixes_text))
 
             # Add rows to the table without color
-            table.add_row([log_file.replace("prompt_history_", ""), "Yes" if is_correctly_fixed else "No", num_suggested_fixes, num_queries])
+            table.add_row([
+                log_file.replace("prompt_history_", ""),
+                "Yes" if is_correctly_fixed else "No",
+                "Yes" if bug_localized else "No",
+                num_suggested_fixes,
+                num_queries
+            ])
             if is_correctly_fixed:
                 all_correctly_fixed.append(log_file.replace("prompt_history_", "").replace("_", " "))
                 detailed_fixed_main.append(experiment_folder + " " + log_file.replace("prompt_history_", "").replace("_", " "))
@@ -58,7 +95,7 @@ def analyze_experiment(experiment_folder):
 
 
 def generate_pdf(experiment_folder, num_log_files, table, correctly_fixed_bugs, total_suggested_fixes):
-    pdf_filename = f"{experiment_folder}_results.pdf"
+    pdf_filename = next_results_filename(f"{experiment_folder}_results", ".pdf")
 
     # Create a PDF document
     pdf = canvas.Canvas(pdf_filename, pagesize=A4)
@@ -94,7 +131,7 @@ def generate_pdf(experiment_folder, num_log_files, table, correctly_fixed_bugs, 
     print(f"Results saved to {pdf_filename}")
 
 def write_to_text_file(experiment_folder, num_log_files, table, correctly_fixed_bugs, total_suggested_fixes, all_suggested_fixes):
-    text_filename = f"{experiment_folder}_results.txt"
+    text_filename = next_results_filename(f"{experiment_folder}_results", ".txt")
 
     with open(text_filename, 'w') as text_file:
         # Write title to the text file
