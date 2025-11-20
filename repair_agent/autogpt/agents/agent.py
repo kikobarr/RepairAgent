@@ -125,6 +125,7 @@ class Agent(BaseAgent):
         command_args: dict[str, str] | None,
         user_input: str | None,
     ) -> str:
+        self.last_test_result = None
         # Execute command
         if command_name is not None and command_name.lower().startswith("error"):
             result = f"Could not execute command: {command_name}{command_args}"
@@ -276,9 +277,11 @@ class Agent(BaseAgent):
                                 raise TypeError("Error: EXPECTED 'DICT', RECEIEVED 'STR' INSTEAD" + fix_command)
                             name, args = extract_command(fix_command, None, self.config)
                             
+                            self.last_test_result = None
                             exec_result = execute_command(name, args, self)
                             logger.info("---------------------------\nRESULT OF TRYING {} returned\n {} \n----------------------------\n\n".format(args, exec_result))
-                            if " 0 failing test" in exec_result:
+                            test_result = self.last_test_result or {}
+                            if test_result.get("status") == "pass":
                                 logger.info("PLAUSIBLE PATCH FOUND. REASON = 0 FAILING TESTS.\n\n")
                                 ## writing the plausible patch
                                 with open(os.path.join("experimental_setups", exps[-1], "plausible_patches", "plausible_patches_{}_{}.json".format(self.project_name, self.bug_index)), "a+") as exps:

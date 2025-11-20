@@ -187,6 +187,7 @@ class BaseAgent(metaclass=ABCMeta):
         self.auto_complete = True
         self. generated_methods= None
         self.dummy_fix = False
+        self.last_test_result: dict[str, Any] | None = None
         with open("experimental_setups/experiments_list.txt") as eht:
             self.exps = eht.read().splitlines()
 

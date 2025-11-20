@@ -64,7 +64,8 @@ async def interaction_step(
 
     if command_name is not None:
         result = agent.execute(command_name, command_args, user_input)
-        if " 0 failing test" in result:
+        test_result = getattr(agent, "last_test_result", None) or {}
+        if test_result.get("status") == "pass" and command_args and "changes_dicts" in command_args:
             with open(os.path.join("experimental_setups", exps[-1], "plausible_patches", "plausible_patches_{}_{}.json".format(agent.project_name, agent.bug_index)), "a+") as exps:
                 exps.write("### PLAUSIBLE FIX\n{}\n".format(str(command_args["changes_dicts"])))
         if result is None:

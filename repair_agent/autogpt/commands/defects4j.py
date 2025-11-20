@@ -204,7 +204,9 @@ def run_tests(project_name: str, bug_index: int, agent: Agent) -> str:
     """
     ai_name = agent.ai_config.ai_name
 
-    return run_defects4j_tests(project_name, bug_index, agent)
+    test_result = run_defects4j_tests(project_name, bug_index, agent)
+    agent.last_test_result = test_result
+    return test_result.get("summary", "")
 
 def run_defects4j_tests(project_name: str, bug_index:int, agent: Agent):
     cmd_temp = "cd {} && defects4j compile && defects4j test"
@@ -234,36 +236,49 @@ def run_defects4j_tests(project_name: str, bug_index:int, agent: Agent):
             cwd=agent.config.workspace_path,
             shell=True
         )
+        raw_output = result.stdout if result.returncode == 0 else result.stderr
+        summary = ""
+        failure_count = None
+        status = "error"
         if result.returncode == 0:
-            logger.debug(
-                "NO ERROR IF: " +result.stdout)
+            logger.debug("NO ERROR IF: " + result.stdout)
             if "BUILD FAILED" in result.stdout:
                 with open(os.path.join(agent.config.workspace_path, folder_name+"_test.txt"), "w") as testrf:
                     testrf.write("")
-                undo_c = undo_changes(project_name, bug_index, agent)
-                return result.stdout[result.stdout.find("BUILD FAILED"):]
-                #return result.stdout
+                undo_changes(project_name, bug_index, agent)
+                summary = result.stdout[result.stdout.find("BUILD FAILED"):]
             else:
                 with open(os.path.join(agent.config.workspace_path, folder_name+"_test.txt"), "w") as testrf:
                     testrf.write(result.stdout)
                 fail_report = extract_fail_report(project_name, bug_index, agent)
-                undo_c = undo_changes(project_name, bug_index, agent)
-                return fail_report
+                undo_changes(project_name, bug_index, agent)
+                summary = fail_report["summary"]
+                failure_count = fail_report["failure_count"]
+                status = "pass" if failure_count == 0 else "fail"
         else:
+            with open(os.path.join(agent.config.workspace_path, folder_name+"_test.txt"), "w") as testrf:
+                testrf.write("")
+            undo_changes(project_name, bug_index, agent)
             if "BUILD FAILED" in result.stderr:
-                with open(os.path.join(agent.config.workspace_path, folder_name+"_test.txt"), "w") as testrf:
-                    testrf.write("")
-                undo_c = undo_changes(project_name, bug_index, agent)
-                return result.stderr[result.stderr.find("BUILD FAILED"):]
-                #return result.stderr
+                summary = result.stderr[result.stderr.find("BUILD FAILED"):]
             else:
-                with open(os.path.join(agent.config.workspace_path, folder_name+"_test.txt"), "w") as testrf:
-                    testrf.write("")
-                undo_c = undo_changes(project_name, bug_index, agent)
-                return result.stderr
+                summary = result.stderr
+        return _build_test_result(status, summary, raw_output, failure_count)
     else:
         logger.debug("Auto-GPT is not running in a Docker container")
-        return "Tricky situation! Auto-GPT is not running in a Docker container"
+        return _build_test_result(
+            "error",
+            "Tricky situation! Auto-GPT is not running in a Docker container",
+            "",
+        )
+
+def _build_test_result(status, summary, raw_output, failure_count=None):
+    return {
+        "status": status,
+        "summary": summary,
+        "raw": raw_output,
+        "failure_count": failure_count,
+    }
     
     # TODO("Adapt this code later to run inside docker if it's not already running")
     try:
@@ -505,7 +520,8 @@ def try_fixes(project_name: str, bug_index:int, fixes_list, agent: Agent):
             "changes_dicts": fixes_list
         }
         write_result = write_range(**params)
-        if "0 failing test cases" in write_result:
+        test_result = agent.last_test_result or {}
+        if test_result.get("status") == "pass":
             sucessful_ones.append(i)
         fixes_feedback += "Fix {}: ".format(i) + write_result + "\n"
 
@@ -519,7 +535,8 @@ def try_fixes(project_name: str, bug_index:int, fixes_list, agent: Agent):
             "changes_dicts": fix
         }
         write_result = write_range(**params)
-        if "0 failing test cases" in write_result:
+        test_result = agent.last_test_result or {}
+        if test_result.get("status") == "pass":
             sucessful_ones.append(i)
         fixes_feedback += "Fix {}: ".format(i) + write_result + "\n"
 
@@ -644,7 +661,8 @@ def write_fix(project_name:str, bug_index:int, changes_dicts: list, agent: Agent
             run_ret = execute_write_range(project_name, bug_index, deletion_fix, agent)
             logger.info("PROBLEM LOCATION 7")
             agent.dummy_fix = True
-            if " 0 failing test" in run_ret:
+            test_result = agent.last_test_result or {}
+            if test_result.get("status") == "pass":
                 return "Deleting the buggy lines fixed the problem and passed all the test cases. 0 failing tests."
     if len(missed_lines)!=0:
         logger.info("PROBLEM LOCATION 8")
@@ -693,6 +711,12 @@ def execute_read_range(project_name, bug_index, filepath, startline, endline, ag
     return lines_str
 
 
+def _format_lines_written_result(test_result):
+    prefix = "Lines written successfully, the result of running test cases on the modified code is the following:\n"
+    summary = test_result.get("summary", "")
+    return prefix + summary
+
+
 def execute_write_range(project_name, bug_index, changes_dicts, agent):
     project_dir = os.path.join(agent.config.workspace_path, project_name.lower()+"_"+str(bug_index)+"_buggy")
     for change_dict in changes_dicts:
@@ -718,8 +742,9 @@ def execute_write_range(project_name, bug_index, changes_dicts, agent):
     
         apply_changes(change_dict)
 
-    run_ret = run_defects4j_tests(project_name, bug_index, agent)
-    return "Lines written successfully, the result of running test cases on the modified code is the following:\n" + run_ret
+    test_result = run_defects4j_tests(project_name, bug_index, agent)
+    agent.last_test_result = test_result
+    return _format_lines_written_result(test_result)
 
 def get_edited_files(name, index):
     target_file = "defects4j/framework/projects/{name}/patches/{index}.src.patch".format(name=name, index=index)
@@ -1083,9 +1108,14 @@ def extract_fail_report(name: str, index: str, agent: Agent):
         failing_test_cases.append(current_case)
 
     logger.debug(str(failing_test_cases))
-    
-    return "There are {} failing test cases, here is the full log of failing cases:\n".format(len(failing_test_cases))+\
+    failure_count = len(failing_test_cases)
+    summary = "There are {} failing test cases, here is the full log of failing cases:\n".format(failure_count) +\
         "\n\n".join(["\n".join(ftc) for ftc in failing_test_cases])
+    return {
+        "summary": summary,
+        "failure_count": failure_count,
+        "cases": failing_test_cases,
+    }
 
 def prepare_init_file(root_path, root_uri, workspace_folder, workspace, project_dir):
     with open("lsp_init_template.json") as lit:
