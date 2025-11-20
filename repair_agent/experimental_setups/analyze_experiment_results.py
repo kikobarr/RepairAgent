@@ -1,3 +1,4 @@
+import csv
 import os
 from prettytable import PrettyTable
 from reportlab.lib.pagesizes import letter, A4
@@ -40,13 +41,30 @@ def next_results_filename(base_name, extension):
             return candidate
         suffix += 1
 
+def load_bug_times(logs_folder):
+    """Load bug timing information recorded by run_on_defects4j."""
+    bug_times_path = os.path.join(logs_folder, "bug_times.csv")
+    bug_times = {}
+    if not os.path.exists(bug_times_path):
+        return bug_times
+
+    with open(bug_times_path, newline="") as csvfile:
+        reader = csv.DictReader(csvfile)
+        for row in reader:
+            key = (row.get("project", "").strip(), row.get("bug", "").strip())
+            bug_times[key] = row
+    return bug_times
+
+
 def analyze_experiment(experiment_folder):
     logs_folder = os.path.join(experiment_folder, 'logs')
-    log_files = [f for f in os.listdir(logs_folder) if os.path.isfile(os.path.join(logs_folder, f))]
+    all_files = [f for f in os.listdir(logs_folder) if os.path.isfile(os.path.join(logs_folder, f))]
+    log_files = [f for f in all_files if f.startswith("prompt_history_")]
     num_log_files = len(log_files)
+    bug_times = load_bug_times(logs_folder)
 
     table = PrettyTable()
-    table.field_names = ["Log File", "Correctly Fixed", "Localized", "Suggested Fixes", "Number of Queries"]
+    table.field_names = ["Log File", "Correctly Fixed", "Localized", "Suggested Fixes", "Number of Queries", "Length (min)"]
     table.align["Log File"] = "l"
 
     correctly_fixed_bugs = 0
@@ -80,13 +98,27 @@ def analyze_experiment(experiment_folder):
             suggested_fixes_text = last_sequence[suggested_fixes_start:suggested_fixes_end].strip()
             all_suggested_fixes.append((log_file.replace("prompt_history_",""), suggested_fixes_text))
 
+            bug_key = log_file.replace("prompt_history_", "")
+            project_name, bug_index = bug_key.rsplit("_", 1) if "_" in bug_key else (bug_key, "")
+            duration_min = "-"
+            bug_time_entry = bug_times.get((project_name, bug_index))
+            if bug_time_entry:
+                try:
+                    start_epoch = int(float(bug_time_entry.get("start_epoch", "0")))
+                    end_epoch = int(float(bug_time_entry.get("end_epoch", "0")))
+                    if end_epoch >= start_epoch:
+                        duration_min = f"{(end_epoch - start_epoch) / 60:.2f}"
+                except ValueError:
+                    duration_min = "-"
+
             # Add rows to the table without color
             table.add_row([
                 log_file.replace("prompt_history_", ""),
                 "Yes" if is_correctly_fixed else "No",
                 "Yes" if bug_localized else "No",
                 num_suggested_fixes,
-                num_queries
+                num_queries,
+                duration_min
             ])
             if is_correctly_fixed:
                 all_correctly_fixed.append(log_file.replace("prompt_history_", "").replace("_", " "))
@@ -131,7 +163,8 @@ def generate_pdf(experiment_folder, num_log_files, table, correctly_fixed_bugs, 
     print(f"Results saved to {pdf_filename}")
 
 def write_to_text_file(experiment_folder, num_log_files, table, correctly_fixed_bugs, total_suggested_fixes, all_suggested_fixes):
-    text_filename = next_results_filename(f"{experiment_folder}_results", ".txt")
+    
+    text_filename = f"{experiment_folder}_results.txt"
 
     with open(text_filename, 'w') as text_file:
         # Write title to the text file
