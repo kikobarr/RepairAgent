@@ -4,9 +4,12 @@ from pathlib import Path
 import re
 import json
 from autogpt.logs import logger
+from dotenv import load_dotenv
 
+STATIC_MODEL = "gpt-3.5-turbo-0125"
 
-STATIC_MODEL = "gpt-4o-mini"
+load_dotenv('../.env')
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 def get_info(name: str, index: int, workspace) -> str:
     """Create and execute a Python file in a Docker container and return the STDOUT of the
@@ -330,7 +333,7 @@ from langchain.chat_models import ChatOpenAI
 from langchain.schema.messages import HumanMessage, SystemMessage, AIMessage
 
 def query_for_fix(query, model=STATIC_MODEL):
-    chat = ChatOpenAI(openai_api_key="API-KEY-PLACEHOLDER", model=model)
+    chat = ChatOpenAI(openai_api_key=OPENAI_API_KEY, model=model)
 
     messages = [
         SystemMessage(
@@ -347,7 +350,7 @@ def query_for_fix(query, model=STATIC_MODEL):
     return response.content
 
 def query_for_mutants(query, model=STATIC_MODEL):
-    chat = ChatOpenAI(openai_api_key="API-KEY-PLACEHOLDER", model=model)
+    chat = ChatOpenAI(openai_api_key=OPENAI_API_KEY, model=model)
 
     messages = [
         SystemMessage(
@@ -394,7 +397,7 @@ def construct_fix_command(fix_object, project_name, bug_index):
 
 
 def query_for_commands(query, model=STATIC_MODEL):
-    chat = ChatOpenAI(openai_api_key="API-KEY-PLACEHOLDER", model=model)
+    chat = ChatOpenAI(openai_api_key=OPENAI_API_KEY, model=model)
 
     messages = [
         SystemMessage(
@@ -501,7 +504,7 @@ def extract_function_def_context(project_name, bug_index, method_name, file_path
     
 def auto_complete_functions(project_name, bug_index, file_path, method_name, model=STATIC_MODEL):
     context = extract_function_def_context(project_name, bug_index, method_name, file_path)
-    chat = ChatOpenAI(openai_api_key="API-KEY-PLACEHOLDER", model=model)
+    chat = ChatOpenAI(openai_api_key=OPENAI_API_KEY, model=model)
     messages = [
             SystemMessage(
                 content="implement the code for the method {}, here is the code before the method:".format(method_name)),
