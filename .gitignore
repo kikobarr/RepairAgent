@@ -164,3 +164,10 @@ repair_agent/logs/
 repair_agent/exception_files.txt
 repair_agent/parsing_erros_responses.txt
 repair_agent/response_content.txt
+
+# Prevents committing the defects4J module, which would obscure other modifications when comparing with the parent repo. 
+# The original sola-st parent repo directs the user to clone the defects4j github repo into the the repo after cloning RepairAgent.
+# Instructions to add these into the repo are in the README and match the process that the original parent repo uses. 
+defects4j/
+../data/buggy-lines defects4j
+../data/buggy-methods defects4j
