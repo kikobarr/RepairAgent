@@ -15,7 +15,9 @@ As modified, the OpenAI API key is added only to the root in .env. The files acc
 load_dotenv('../.env')
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
-STATIC_MODEL = "gpt-4o-mini"
+# Note: This is not a modification to the original experiement, but a restoration back to the configuration of the experiment, 
+# which used `gpt-3.5-turbo-0125` for all OpenAI API calls. 
+STATIC_MODEL = "gpt-3.5-turbo-0125"
 
 def get_info(name: str, index: int, workspace) -> str:
     """Create and execute a Python file in a Docker container and return the STDOUT of the

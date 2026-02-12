@@ -24,7 +24,7 @@ from create_files_index import list_java_files
 
 """
 Replication Modification: OpenAI API key
-Originally, the OpenAI API key is hardcoded in the files by using set_api_key.py. 
+Originally, the OpenAI API key is hardcoded in the repo by using set_api_key.py. 
 Then `git update-index` was used on each of those files to prevent the API key from being published.
 As modified, the OpenAI API key is added only to the root in .env. The files access the API key using the python-dotenv tool.
 """
@@ -1246,7 +1246,11 @@ If the details in the given quetion are not enough, you should ask the user to a
 
     return response.content
 
-def validate_fix_against_hypothesis(bug_report, hypothesis, fix, model = "gpt-4o-mini"):
+"""
+Note: This is not a modification to the original experiement, but a restoration back to the configuration of the experiment, 
+which used `gpt-3.5-turbo-0125` for all OpenAI API calls. 
+"""
+def validate_fix_against_hypothesis(bug_report, hypothesis, fix, model = "gpt-3.5-turbo-0125"):
     chat = ChatOpenAI(openai_api_key=OPENAI_API_KEY, model=model)
 
     messages = [
@@ -1568,7 +1572,10 @@ def extract_function_def_context(project_name, bug_index, method_name, filepath,
         }
     }
 )
-def auto_complete_functions(project_name, bug_index, filepath, method_name, agent, model="gpt-4o-mini"):
+
+# Note: This is not a modification to the original experiement, but a restoration back to the configuration of the original, 
+# which used `gpt-3.5-turbo-0125` for all OpenAI API calls. 
+def auto_complete_functions(project_name, bug_index, filepath, method_name, agent, model="gpt-3.5-turbo-0125"):
     context = extract_function_def_context(project_name, bug_index, method_name, filepath, agent)
     chat = ChatOpenAI(openai_api_key=OPENAI_API_KEY, model=model)
     messages = [
