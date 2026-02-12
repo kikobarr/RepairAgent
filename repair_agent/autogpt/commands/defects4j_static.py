@@ -4,7 +4,16 @@ from pathlib import Path
 import re
 import json
 from autogpt.logs import logger
+from dotenv import load_dotenv
 
+"""
+Replication Modification: OpenAI API key
+Originally, the OpenAI API key is hardcoded in the repo by using set_api_key.py.
+Then `git update-index` was used on each of those files to prevent the API key from being published.
+As modified, the OpenAI API key is added only to the root in .env. The files access the API key using the python-dotenv tool.
+"""
+load_dotenv('../.env')
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 STATIC_MODEL = "gpt-4o-mini"
 
@@ -330,7 +339,7 @@ from langchain.chat_models import ChatOpenAI
 from langchain.schema.messages import HumanMessage, SystemMessage, AIMessage
 
 def query_for_fix(query, model=STATIC_MODEL):
-    chat = ChatOpenAI(openai_api_key="API-KEY-PLACEHOLDER", model=model)
+    chat = ChatOpenAI(openai_api_key=OPENAI_API_KEY, model=model)
 
     messages = [
         SystemMessage(
@@ -347,7 +356,7 @@ def query_for_fix(query, model=STATIC_MODEL):
     return response.content
 
 def query_for_mutants(query, model=STATIC_MODEL):
-    chat = ChatOpenAI(openai_api_key="API-KEY-PLACEHOLDER", model=model)
+    chat = ChatOpenAI(openai_api_key=OPENAI_API_KEY, model=model)
 
     messages = [
         SystemMessage(
@@ -394,7 +403,7 @@ def construct_fix_command(fix_object, project_name, bug_index):
 
 
 def query_for_commands(query, model=STATIC_MODEL):
-    chat = ChatOpenAI(openai_api_key="API-KEY-PLACEHOLDER", model=model)
+    chat = ChatOpenAI(openai_api_key=OPENAI_API_KEY, model=model)
 
     messages = [
         SystemMessage(
@@ -501,7 +510,7 @@ def extract_function_def_context(project_name, bug_index, method_name, file_path
     
 def auto_complete_functions(project_name, bug_index, file_path, method_name, model=STATIC_MODEL):
     context = extract_function_def_context(project_name, bug_index, method_name, file_path)
-    chat = ChatOpenAI(openai_api_key="API-KEY-PLACEHOLDER", model=model)
+    chat = ChatOpenAI(openai_api_key=OPENAI_API_KEY, model=model)
     messages = [
             SystemMessage(
                 content="implement the code for the method {}, here is the code before the method:".format(method_name)),

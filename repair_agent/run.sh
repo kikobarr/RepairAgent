@@ -14,7 +14,12 @@ function find_python_command() {
 }
 
 PYTHON_CMD=$(find_python_command)
-export OPENAI_KEY=GLOBAL-API-KEY-PLACEHOLDER
+
+# Replication Modification: OpenAI API key
+# Originally, the OpenAI API key is hardcoded in the repo by using set_api_key.py.
+# Then `git update-index` was used on each of those files to prevent the API key from being published.
+# As modified, the OpenAI API key is added only to the root in .env. The files access the API key using the python-dotenv tool.
+export OPENAI_KEY="${OPENAI_API_KEY}"
 if $PYTHON_CMD -c "import sys; sys.exit(sys.version_info < (3, 10))"; then
     $PYTHON_CMD scripts/check_requirements.py requirements.txt
     if [ $? -eq 1 ]

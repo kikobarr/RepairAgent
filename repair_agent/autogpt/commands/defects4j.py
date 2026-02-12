@@ -9,6 +9,7 @@ import re
 import json
 import random
 import time
+from dotenv import load_dotenv
 
 import docker
 from docker.errors import DockerException, ImageNotFound
@@ -20,6 +21,15 @@ from autogpt.logs import logger
 
 import javalang
 from create_files_index import list_java_files
+
+"""
+Replication Modification: OpenAI API key
+Originally, the OpenAI API key is hardcoded in the files by using set_api_key.py. 
+Then `git update-index` was used on each of those files to prevent the API key from being published.
+As modified, the OpenAI API key is added only to the root in .env. The files access the API key using the python-dotenv tool.
+"""
+load_dotenv('../.env')
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 ALLOWLIST_CONTROL = "allowlist"
 DENYLIST_CONTROL = "denylist"
@@ -1218,7 +1228,7 @@ from langchain.schema.messages import HumanMessage, SystemMessage, AIMessage
 )
 """
 def ask_chatgpt(question: str, agent: Agent):
-    chat = ChatOpenAI(openai_api_key="API-KEY-PLACEHOLDER")
+    chat = ChatOpenAI(openai_api_key=OPENAI_API_KEY)
 
     if not agent.ask_chatgpt:
         messages = [
@@ -1237,7 +1247,7 @@ If the details in the given quetion are not enough, you should ask the user to a
     return response.content
 
 def validate_fix_against_hypothesis(bug_report, hypothesis, fix, model = "gpt-4o-mini"):
-    chat = ChatOpenAI(openai_api_key="API-KEY-PLACEHOLDER", model=model)
+    chat = ChatOpenAI(openai_api_key=OPENAI_API_KEY, model=model)
 
     messages = [
         SystemMessage(
@@ -1560,7 +1570,7 @@ def extract_function_def_context(project_name, bug_index, method_name, filepath,
 )
 def auto_complete_functions(project_name, bug_index, filepath, method_name, agent, model="gpt-4o-mini"):
     context = extract_function_def_context(project_name, bug_index, method_name, filepath, agent)
-    chat = ChatOpenAI(openai_api_key="API-KEY-PLACEHOLDER", model=model)
+    chat = ChatOpenAI(openai_api_key=OPENAI_API_KEY, model=model)
     messages = [
             SystemMessage(
                 content="You are a code implementer and autocompletion engine. Basically, you would be given some already written code up to some line and you would be asked to implement the function/method that is declared at the last line. Always give full implementation of the method starting from declaration (public void myFunc(...)) to all the body. Take the given context into considration. Only give the implementation of the method and nothing else. If you want to add some explanation you can write it as comments above each line of code."),
