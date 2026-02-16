@@ -1,364 +1,322 @@
-# 🛠️ RepairAgent
+# RepairAgent Replication Study
 
-RepairAgent is an autonomous LLM-based agent designed for automated program repair. For a comprehensive understanding of its workings and development, you can check out our [research paper here](https://arxiv.org/abs/2403.17134).
+The RepairAgent Replication Project is an undergraduate research effort to replicate and extend a large language model based automated program repair (APR) coding agent from *[RepairAgent: An Autonomous, LLM-Based Agent for Program Repair (ICSE 2023)](https://arxiv.org/abs/2403.17134)*. The original work is a highly cited study evaluated on over 800 real world bugs from the Defects4J dataset. RepairAgent is powered by the OpenAI Chat Completions API and integrates coding tools to autonomously diagnose and repair software defects. 
 
----
+This version runs on the National Research Platform (NRP) Nautilus Kubernetes cluster, which enables parallel execution of RepairAgent across individual bugs, reducing total experimentation time by months. The code is baked into a Docker image and the logs / data are output to a PVC with a back up sync to an S3 bucket. 
 
-## 🚨✨ **UPDATE – June 2025** ✨🚨
+## Step 1: Set default namespace
 
-> **⚡ The script now supports multiple AI models!**
->
-> You can now specify the model using a command-line argument:
->
-> ```bash
-> bash your_script.sh <input.txt> <params.json> <model-name>
-> ```
-> See below for detailed instructions.
-> If `<model-name>` is omitted, the script will use the default: `gpt-4o-mini`.
+Set the default namespace in Kubernetes, which allows you to not have to specify the namespace in the rest of the kubectl commands.
 
-**Supported Models:**
-- `gpt-4o-mini` (default)
-- `gpt-4.1`
-- `gpt-4o`
-- `gpt-4.1-mini`
-- `gpt-4.1-nano`
+Run:
 
-> ⚠️ **Don't forget to update your command usage!**
+`kubectl config set-context nautilus --namespace=cal-poly-humboldt-repair-agent`
 
+Double check default namespace with: 
 
-## 📋 I. Requirements
+`kubectl config view --minify --output 'jsonpath={..namespace}'`
 
-Before you start using RepairAgent, ensure that your system meets the following requirements:
+## Step 2: Add API key to secrets
 
-- **Docker**: Version 20.04 or higher. For installation instructions, see the [Docker documentation](https://docs.docker.com/get-docker).
-- **VS Code**: Not a hard requirement but highly recommended. VS Code provides an easy way to interact with RepairAgent using Dev Containers (see the instructions below).
-- **OpenAI Token and Credits**:
-  - Create an account on the OpenAI website and purchase credits to use the API.
-  - Generate an API token on the same website.
-- **Disk Space**:
-    - At least 40GB of available disk space on your machine. The code itself does not take 40GB. However, the dependencies might take up to 8GB, and files generated from running on different instances may use more. 40GB is a safe estimate.
-    - If you are using VS Code Dev Containers, you can avoid pulling the heavy Docker image (~22GB).
-- **Internet Access**: Required while running RepairAgent to connect to OpenAI's API.
+The RepairAgent requires an API key. Rather than using the .env baked into the image, we use Kubernetes Secrets. There are many ways to configure a job to access a secret. Since we only have a single API key, we are using env vars (envFrom: secretRef). 
 
----
+First, create a the .env file and put it in: 
 
-## ⚙️ II. How to Use RepairAgent?
+Once created, confirm .env is in both the .Dockerignore and .gitignore.
 
-You have two ways to use RepairAgent:
+The only variable in the .env is the API key. Add:
 
-1. **Start a VS Code Dev Containers**: The easiest method, as it avoids pulling the large Docker image.
-2. **Use the Docker Image**: Suitable for users familiar with Docker.
+`OPENAI_API_KEY=put-your-key-here`
 
-### 🚀 Option 1: Using a VS Code Dev Containers
+Then, add the API key as secret to the namespace by running this from the root of the project (RepairAgent, not repair_agent) where .env exists:
 
-### **STEP 1: Open RepairAgent in a Dev Containers**
+`kubectl create secret generic repairagent-env --from-env-file=repair_agent/.env`
 
-1. Ensure you have the **Dev Containers** extension installed in VS Code. You can install it from the [Visual Studio Code Marketplace](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers).
+Check whether secret was successfully created:
 
-2. Clone the RepairAgent repository:
+`kubectl get secret`
 
-   ```bash
-   git clone https://github.com/sola-st/RepairAgent.git
-   cd RepairAgent
-   cd repair_agent
-   rm -rf defects4j
-   git clone https://github.com/rjust/defects4j.git
-   cp -r ../data/buggy-lines defects4j
-   cp -r ../data/buggy-methods defects4j
-   cd ../..
-   ```
+If you update .env, then re-run the create secret command with
 
-3. Open the repository folder in VS Code.
-
-4. When prompted by VS Code to "Reopen in Container," click it. If not prompted, open the Command Palette (Ctrl+Shift+P) and select "Dev Containers: Reopen in Container." VS Code will now build and start the DevContainer, setting up the environment for you.
-
-5. Within your VS Code terminal, move to the folder repair_agent
-    ```bash
-    cd repair_agent
-    ```
-
-6. Update Git indices to assume unchanged for the to-be-modified files, to avoid submitting these files accidentally:
-    ```bash
-    # Will be modified when setting the OpenAI API key
-    git update-index --assume-unchanged .env
-    git update-index --assume-unchanged autogpt/.env
-    git update-index --assume-unchanged autogpt/commands/defects4j.py
-    git update-index --assume-unchanged autogpt/commands/defects4j_static.py
-    git update-index --assume-unchanged run.sh
-
-    # Will be modified when running the experiments
-    git update-index --assume-unchanged ai_settings.yaml
-    git update-index --assume-unchanged defects4j
-    git update-index --assume-unchanged experimental_setups/bugs_list
-    git update-index --assume-unchanged experimental_setups/experiments_list.txt
-    git update-index --assume-unchanged experimental_setups/fixed_so_far
-    git update-index --assume-unchanged model_logging_temp.txt
-    ```
-
-### **STEP 2: Set the OpenAI API Key**
-
-Inside the DevContainer terminal, configure your OpenAI API key by running:
-
-```bash
-python3.10 set_api_key.py
+```
+kubectl create secret generic repairagent-env \
+  --from-env-file=repair_agent/.env \
+  --dry-run=client -o yaml | kubectl apply -f -
 ```
 
-The script will prompt you to paste your API token.
+## Step 3: Add S3 keys to secrets
 
-### **STEP 3: Start RepairAgent**
+1. Log in to nrp.ai 
+2. Go to https://nrp.ai/s3token/ and request a token. An email will be sent to the email on your NRP account.
+3. Open the email and follow the provided link in to see S3 credentials.
+4. Add secrets to namespace by replacing "akey" and "skey" respectively in the following command: 
 
-By default, RepairAgent is configured to run on Defects4J bugs. To specify which bugs to run on:
-
-1. Create a text file named, for example, `bugs_list`. A sample file exists in the repository at `experimental_setups/bugs_list`.
-2. Run the following command:
-
-   ```bash
-   ./run_on_defects4j.sh experimental_setups/bugs_list hyperparams.json gpt-4o-mini
-   ```
-
-You can open the `hyperparams.json` file to review or customize its parameters (explained further in the customization section).
+`kubectl create secret generic s3-creds --from-literal=AWS_ACCESS_KEY_ID=akey --from-literal=AWS_SECRET_ACCESS_KEY=skey`
 
 
-**If you went with this option, you can jump to section `4.1 What Happens When You Start RepairAgent?` to see more details on the results of running RepairAgent.**
+## Step 4: Pre-Download tiktoken cache
 
----
+This step is to prevent an NRP Nautilus-specific failure which restricts the outgoing request to download the tiktoken cache. We will pre-download it. 
 
-### 🚀 Option 2: Using the Docker Image
-
-### **STEP 1: Pull the Docker Image**
-
-Run the following commands in your terminal to retrieve and start our Docker image:
+Go to Downloads folder (or any local folder) and create a temporary venv there: 
 
 ```bash
-# Pull the image from DockerHub
-docker pull islemdockerdev/repair-agent:v1
-
-# Run the image inside a container
-docker run -itd --name apr-agent islemdockerdev/repair-agent:v1
-
-# Start the container
-docker start -i apr-agent
+python3 -m venv .venv
+source .venv/bin/activate
+pip install tiktoken
 ```
 
-### **STEP 2: Attach the Container to VS Code**
-
-- After starting the container, open VS Code and navigate to the **Containers** icon on the left panel. Ensure you have the **Remote Explorer** extension installed.
-- Under the **Dev Containers** tab, find the name of the container you just started (e.g., `apr-agent`).
-- Attach the container to a new window by clicking the "+" sign to the right of the container name, then navigate to the `workdir` folder in the VS Code window (**the workdir is `/app/AutoGPT`**).
-- **Tutorial Reference**: For detailed steps on attaching a Docker container in VS Code, check out this [video tutorial (1min 38 sec)](https://www.youtube.com/watch?v=8gUtN5j4QnY&t).
-
-### **STEP 3: Set the OpenAI API Key**
-
-Inside the Docker container, configure your OpenAI API key by running:
+Store the tiktoken chache locally:
 
 ```bash
-python3.10 set_api_key.py
+mkdir -p /tmp/tiktoken_cache
+TIKTOKEN_CACHE_DIR=/tmp/tiktoken_cache python - <<'PY'
+import tiktoken
+tiktoken.get_encoding("cl100k_base")
+PY
 ```
 
-The script will prompt you to paste your API token.
+You will copy this into the PVC in the next step. Tiktoken knows about the cache because we are setting TIKTOKEN_CACHE_DIR is set in the environment.
 
-### **STEP 4: Start RepairAgent**
+## Step 5: Create and populate PVC
 
-By default, RepairAgent is configured to run on Defects4J bugs. To specify which bugs to run on:
+While in deployment directory in the terminal, create the PVC instance with: 
 
-1. Create a text file named, for example, `bugs_list`. A sample file exists in the repository and Docker image at `experimental_setups/bugs_list`.
-2. Run the following command:
+`kubectl create -f pvc-repairagent.yaml`
 
-   ```bash
-   ./run_on_defects4j.sh experimental_setups/bugs_list hyperparams.json gpt-4o-mini
-   ```
+Double check with: 
 
-You can open the `hyperparams.json` file to review or customize its parameters (explained further in the customization section).
+`kubectl get pvc`
 
-#### **4.1 What Happens When You Start RepairAgent?**
+Make sure to mount BOTH the repairagent job pod AND the PVC helper pod to /app/repair_agent/experimental_setups/experiment_1/ using the volume_helper_pod.yaml, create the child directories that the RepairAgent expects when outputting logs. Note: There does not have to be an experiment_1/ directory in the image. You just need to make sure the `experiments_list.txt` (which is baked into the image) only says experiment_1 and that `increment_experiment.py` is not called in `run_on_defects4j.sh`. 
 
-- RepairAgent checks out the project with the given bug ID.
-- It initiates the autonomous repair process.
-- Logs detailing each step performed will be displayed in your terminal.
+To create the helper pod that will allow you to see the PVC, run: 
 
-#### **4.2 Retrieve Repair Logs and History**
+`kubectl create -f pod-storage-helper.yaml`
 
-RepairAgent saves the output in multiple files.
+For some reason, this is sometimes slow to spin up. Check the status with:
 
-- The primary logs are located in the folder `experimental_setups/experiment_X`, where `experiment_X` increments automatically with each run of the command `./run_on_defects_4j.sh`.
+`kubectl get pod`
 
-- Within this folder, you may find several subfolders:
-  - **logs**: Full chat history (prompts) and command outputs (one file per bug).
-  - **plausible_patches**: Any plausible patches generated (one file per bug).
-  - **mutations_history**: Suggested fixes derived by mutating prior suggestions (one file per bug).
-  - **responses**: Responses from the agent (LLM) at each cycle (one file per bug).
+Copy /tmp/tiktoken_cache into the PVC using the helper pod with: 
 
-#### **4.3 Analyze Logs**
+`kubectl cp /tmp/tiktoken_cache volume-helper-pod:/app/repair_agent/experimental_setups/experiment_1/tiktoken_cache`
 
-Within the `experimental_setups` folder, several scripts are available to post-process the logs:
+Enter the interactive shell:
 
-- **Collect Plausible Patches**:
-  Use the script `collect_plausible_patches_files.py` to gather the generated plausible patches across multiple experiments:
-  
-  ```bash
-  python3.10 collect_plausible_patches_files.py 1 10
-  ```
-  
-  `A plausible patch is a patch that passes all test cases and is a candidate to be the correct patch`
+`kubectl exec -it volume-helper-pod -- /bin/sh`
 
-- **Get Fully Executed Runs**:
-  Use `get_list_of_fully_executed.py` to retrieve runs that reached at least 38 out of 40 cycles. This allows to identify executions that terminated unexpectedly or called the exit function prematurely.
-
-  ```bash
-  python3.10 get_list_of_fully_executed.py
-  ```
-
-- **Analyze experiments results**:
-  Produces a summary for all executed experiments so far. A text file is generated for each experiment where it shows all the suggested patches per bug and also a table with BugID, number of cycles, number of suggested patches and the number of plausible patches.
-
-  ```bash
-  python3.10 analyze_experiment_results.py
-  ```
-
-  An example of the output file would look like this:
-  ```md
-  Experiment Results: experiment_60
-
-  Number of Bugs: 2
-  Correctly fixed bugs: 1
-  Total Suggested Fixes: 4
-
-  The list of suggested fixes:
-  Cli_8
-
-  ###Fix:
-  Lines:['812', '813', '814', '815', '816', '817', '818', '819', '820'] from file /workspace/Auto-GPT/auto_gpt_workspace/cli_8_buggy/src/java/org/apache/commons/cli/HelpFormatter.java were replaced with the following:
-  {'812': 'pos = findWrapPos(text, width, 0);', '813': 'if (pos == -1) { sb.append(rtrim(text)); return sb; }', '814': 'sb.append(rtrim(text.substring(0, pos))).append(defaultNewLine);', '815': 'final String padding = createPadding(nextLineTabStop);', '816': 'while (true) {', '817': 'text = padding + text.substring(pos).trim();', '818': 'pos = findWrapPos(text, width, nextLineTabStop);', '819': 'if (pos == -1) { sb.append(text); return sb; }', '820': 'sb.append(rtrim(text.substring(0, pos))).append(defaultNewLine);'}
-
-  ###Fix:
-  Lines:['812', '813', '814', '815', '816', '817', '818', '819', '820'] from file /workspace/Auto-GPT/auto_gpt_workspace/cli_8_buggy/src/java/org/apache/commons/cli/HelpFormatter.java were replaced with the following:
-  {'812': 'pos = findWrapPos(text, width, nextLineTabStop);', '813': 'if (pos == -1) { sb.append(rtrim(text)); return sb; }', '814': 'sb.append(rtrim(text.substring(0, pos))).append(defaultNewLine);', '815': 'final String padding = createPadding(nextLineTabStop);', '816': 'while (true) {', '817': 'text = padding + text.substring(pos).trim();', '818': 'pos = findWrapPos(text, width, nextLineTabStop);', '819': 'if (pos == -1) { sb.append(text); return sb; }', '820': 'sb.append(rtrim(text.substring(0, pos))).append(defaultNewLine);'}
-
-  ###Fix:
-  Lines:['812', '813', '814', '815', '816', '817', '818', '819', '820'] from file /workspace/Auto-GPT/auto_gpt_workspace/cli_8_buggy/src/java/org/apache/commons/cli/HelpFormatter.java were replaced with the following:
-  {'812': 'pos = findWrapPos(text, width, nextLineTabStop);', '813': 'if (pos == -1) { sb.append(rtrim(text)); return sb; }', '814': 'sb.append(rtrim(text.substring(0, pos))).append(defaultNewLine);', '815': 'final String padding = createPadding(nextLineTabStop);', '816': 'while (true) {', '817': 'text = padding + text.substring(pos).trim();', '818': 'pos = findWrapPos(text, width, nextLineTabStop);', '819': 'if (pos == -1) { sb.append(text); return sb; }', '820': 'sb.append(rtrim(text.substring(0, pos))).append(defaultNewLine);'}
-
-  Chart_1
-
-  ###Fix:
-  Lines:['1797'] from file org/jfree/chart/renderer/category/AbstractCategoryItemRenderer.java were replaced with the following:
-  {'1797': 'if (dataset == null) {'}
-
-  +----------+-----------------+-----------------+-------------------+
-  | Log File | Correctly Fixed | Suggested Fixes | Number of Queries |
-  +----------+-----------------+-----------------+-------------------+
-  | Cli_8    |        No       |        3        |         32        |
-  | Chart_1  |       Yes       |        1        |         10        |
-  +----------+-----------------+-----------------+-------------------+
-
-  ```
----
-
-## ✨ III. Customize RepairAgent
-
-### 1. Modify `hyperparams.json`
-
-- **Budget Control Strategy**: Defines how the agent views the remaining cycles, suggested fixes, and minimum required fixes:
-  - **FULL-TRACK**: Put the max, consumed and left budget in the prompt (default for our experiments).
-  - **NO-TRACK**: Suppresses budget information.
-  - **FORCED**: Experimental and buggy—avoid use (we did not use this option).
-  
-  Example Configuration:
-  
-  ```json
-  "budget_control": {
-      "name": "FULL-TRACK",
-      "params": {
-          "#fixes": 4 //The agent should suggest at least 4 patches within the given budget, the number is updated based on agent progress (4 is default).
-      }
-  }
-  ```
-
-- **Repetition Handling**: Default settings restrict repetitions.
-  ```json
-  "repetition_handling": "RESTRICT",
-  ```
-
-- **Command Limit**: Controls the maximum allowed cycles (budget).
-  ```json
-  "commands_limit": 40 // default for our experiment
-  ```
-
-- **Request External Fixes**: Experimental feature allowing the request of fixes from another LLM.
-  ```json
-  "external_fix_strategy": 0, // deafult for our experiment
-  ```
-
-### 2. Switch Between GPT-3.5 and GPT-4
-
-In the `run_on_defects4j.sh` file, locate the line:
 ```bash
-./run.sh --ai-settings ai_settings.yaml --gpt3only -c -l 40 -m json_file --experiment-file "$2"
+cd app/repair_agent/experimental_setups/experiment_1
+mkdir logs plausible_patches mutations_history responses saved_contexts
 ```
-- The `--gpt3only` flag enforces GPT-3.5 usage. Removing this flag switches RepairAgent to GPT-4.
-- Search the codebase for "gpt-3" and "gpt-4" to update version names accordingly.
 
----
+`CTRL + D` to exit the interactive shell. 
 
-## 📊 IV. Our Data
+While the PVC allows readWriteMany, it's good practice to delete the pod after you're done:
 
-In our experiments, we utilized RepairAgent on the Defects4J dataset, successfully fixing 164 bugs. You can check our data under the folder data.
-- The list of fixed bugs [here](./data/final_list_of_fixed_bugs). The list allows to compare with prior and future work.
-  * For example, we compare to ChatRepair, SelfAPR, and ITER. The venn diagram of Figure 6 is produced using the command:
-    ```bash
-    python3.10 draw_venn_chatrepair_clean.py
+`kubectl delete pod pod-storage-helper`
+
+## Step 6: Create S3 Bucket with Helper Pod
+
+There are several ways to access the Nautilus S3 instance, but one simple way is by accessing the endpoint through an S3 helper pod. The endpoint is defined in the pod with the key value pair: `name: RCLONE_CONFIG_NAUTILUS_ENDPOINT` and `value: "http://rook-ceph-rgw-nautiluss3.rook"`. We will use `s3-transfer-pod.yaml` which references the S3 secret keys we just added and the endpoint. 
+
+`kubectl create -f pod-storage-helper.yaml`
+
+Shell into the pod where you will be able to use `rclone` commands directly:
+
+`kubectl exec -it pod-storage-helper -- sh`
+
+Use this command to get the name of the S3 remote, which should be `nautilus`: 
+
+`rclone listremotes`
+
+You will see "2026/01/25 00:16:06 NOTICE: Config file "/config/rclone/rclone.conf" not found - using defaults", but this is expected since we are configuring rclone entirely through environment variables, not via a config file.
+
+Create a permanent s3 bucket in the ceph west pool to store your data by using rclone inside the pod: 
+
+`rclone mkdir nautilus:repair-agent-bucket`
+
+Use this rclone to see if the bucket has been created in the nautilus remote:
+
+`rclone lsd nautilus:repair-agent-bucket`
+
+`rclone lsd nautilus:repair-agent-bucket/Chart_1`
+
+Note: While the `job-repairagent-S3.yaml` will sometimes sync to an S3 path called `nautilus:repair-agent-bucket/failed/`, you do not have to create failed/ because S3 does not have directories, but rather prefixes that look like directory paths. If that part of the job runs, then it will just create objects with those prefixes.
+
+List objects in bucket to confirm that the bucket is empty except for failed/: 
+
+`rclone ls nautilus:repair-agent-bucket`
+
+
+## Optional: Build and push Docker image
+
+If you make any changes to the code, then you need to create your own Docker image to use in the Kubernetes job.
+
+Go to the GitLab repo for the project. In the side bar, hover over "Deploy" then choose "Container registry". That will take you to the UI for the repo's container.
+
+Log in to GitLab:
+
+`docker login gitlab-registry.nrp-nautilus.io`
+
+Make sure Docker Desktop is running if on Mac or Windows. Then from the root directory, build the image for Linux AMD arch (update tag as needed):
+
+`docker buildx build --platform linux/amd64 -f Dockerfile.replication -t gitlab-registry.nrp-nautilus.io/humboldt/repairagent:0.11 --load .`
+
+Optionally, check image size:
+
+`docker images | grep repairagent`
+
+Once you see "successfully built", push the image to the registry. Again, adjust the tag as needed. 
+
+`docker push gitlab-registry.nrp-nautilus.io/humboldt/repairagent:0.11`
+
+## Step 7: Set up bugs_list.txt in a ConfigMap
+
+Copy and paste the bugs you want to run from `bugs_list_complete.txt` into `configmap-bugs.yaml`. Make sure the number of bugs in `configmap-bugs.yaml` matches the `completions` and optionally `parallelism` amounts or some pods will fail with “No bug line found…”.
+
+To newly add the configmap to the namespace, run this from deployment/: 
+
+`kubectl create -f configmap-bugs.yaml`
+
+Or if you're just updating it and it already exists, run: 
+
+`kubectl apply -f configmap-bugs.yaml`
+
+## Step 8: Run the job
+
+WAIT! Make sure to double check the job yaml has the following: 
+- correct image tag in the field `image`
+- values of `completions` matches the number of bugs in the config map
+
+Then, from deployment/ run: 
+
+`kubectl create -f repairagent_job_with_pvc_indexed.yaml`
+
+Here are some status checks you can run: 
+
+`kubectl get events --sort-by=.metadata.creationTimestamp`
+
+`kubectl get jobs`
+
+`kubectl describe job repairagent`
+
+`kubectl get pods`
+
+`kubectl logs repairagent-tc42x > logs.txt`
+
+Remember to periodically sample the CPU usage so you can dial it in in the next request:
+
+`kubectl top pod`
+
+After the job has completed, delete it (pods will be deleted by default) to make sure we can mount the PVC helper pod to the PVC: 
+
+`kubectl delete job repairagent`
+
+### Step 9: Move output files from PVC to local directory
+
+Spin up the PVC helper pod again:
+
+`kubectl create -f pod-storage-helper.yaml`
+
+From the experimental_setups folder locally, copy the experiment_1 folder into it with: 
+
+`kubectl cp volume-helper-pod:app/repair_agent/experimental_setups/experiment_1 ./experiment_1`
+
+### Step 10: Clean up resources: 
+
+Delete pod and PVC by running: 
+
+`kubectl delete pod pod-storage-helper`
+
+`kubectl delete pvc repairagent-pvc`
+
+
+## Optional: Getting files in S3 bucket to Local
+
+S3 —> PVC mounted to helper pod —> Local 
+
+rclone cannot reach S3 endpoint rook-ceph-rgw-nautiluss3.rook (no such host) event when configured. That hostname is cluster-internal, so Nautilus S3 is typically unreachable from local without special network access. Therefore, we need to use an S3 helper pod on the cluster.
+
+1. Spin up S3 helper pod with rclone image and PVC mount point
+2. Copy 
+
+To copy folders from PVC mounted to S3 helper pod —> bucket `nautilus:repair-agent-bucket` use this command from the shell of the S3 helper pod: 
+
+`rclone copy /app/repair_agent/experimental_setups/experiment_1 nautilus:repair-agent-bucket --progress --transfers 4 --checkers 8`
+
+Copy from S3 to Local. Run this from my local terminal:
+
+`rclone copy nautilus:repair-agent-bucket ~/Downloads --progress --transfers 4 --checkers 8`
+
+# About S3 rclone step
+
+We use an rclone sidecar to avoid modifying the main repairagent image. The sidecar runs rclone:v1.72-stable, mounts the same PVC at /app/repair_agent/experimental_setups/experiment_1, and computes BUG_DIR from the same indexed job inputs as the main container. It waits for timing.csv to appear, then logs [DONEFILE] running rclone... and syncs that BUG_DIR to nautilus:repair-agent-bucket/. On termination, a preStop hook logs [PRESTOP] running rclone... and syncs to nautilus:repair-agent-bucket/failed/, with terminationGracePeriodSeconds set to allow the final copy to finish.
+
+When the main container exits, Kubernetes starts terminating the pod, and the sidecar gets the termination signal too. It can keep running during the grace period (up to terminationGracePeriodSeconds) before it’s force‑killed. That’s the window your preStop hook and any final rclone sync get to finish.
+
+
+# About Original Replication 
+
+
+## Anatomy of User Prompt
+
+```
+System prompt: role + 3 states
+## Goals → Static
+Locate the Bug, Perform code Analysis, Try simple Fixes, Try complex Fixes
+## Current state → Dynamic
+collect information to understand the bug
+collect information to fix the bug
+trying out candidate fixes
+## Commands → Dynamic
+Commands that are available based on the state
+## General guidelines → Static
+## The format of the fix → Static
+description of the json format in which you should write your fixes
+### Bug info → Dynamic
+Root cause in triggering tests:
+The bug is located at exactly these lines numbers: OR FAULT OF OMISSION
+The following is the list of buggy methods:
+if extract_test_code command is called: ### The code of the failing test cases:
+### Test cases results: There are 2 failing test cases, here is the full log of failing cases:
+## Hypothesis about the bug:
+## Read lines:
+## AI generated regeneration of buggy method:
+## The list of implementations of some methods in the code base:
+extract_method_code
+Command extract_method_code returned: We found the following implementations for the method name iterateDomainBounds (we give the body of the method):
+## Suggested fixes:
+## Executed search queries within the code base:
+Lists out the results of search queries from the command search_code_base
+## Functions calls extracted based on snippets of code and target files
+## DO NOT TRY TO USE THE FOLLOWING COMMANDS IN YOUR NEXT ACTION (NEVER AT ALL)
+Guidance on JSON output
+You have X commands left.
+```
+
+## Anatomy of Model Response
+Model_responses_*.txt
+
+The file is written in agent.py inside Agent.parse_and_process_response(...). It is the actual LLM's response which llm_response.content pulls from the OpenAI chat completion API response: response.choices[0].message["content"].
+
+It includes the agent's thoughts and command. 
+
+The reason that it is a JSON blob is that the LLM has been instructed to respond in this format, which has been defined in the user prompt: 
+
+```
+Determine exactly one command to use based on the given goals and the progress you have made so far, and respond using the JSON schema specified previously:
+Respond strictly with JSON. The JSON should be compatible with the TypeScript type `Response` from the following:
+    ```ts
+    interface Response {
+    // Express your thoughts based on the information that you have collected so far, the possible steps that you could do next and also your reasoning about fixing the bug in question"
+    thoughts: string;
+    command: {
+    name: string;
+    args: Record<string, any>;
+    };
+    }
     ```
-  * The file [d4j12.csv](./repair_agent/experimental_setups/d4j12.csv) contains the list of bugs fixed by previous work. The script draw_venn_chatrepair_clean.py contains the list of fixes that we compare to.
-- The implementation details of the patches in [this file](./data/fixes_implementation).
- 
-- The folder **data/root_patches** contains patches produced by RepairAgent in the main phase
-- The folder **data/derivated_pathces** contains patches obtained by mutating **root_patches**
+```
 
-
-Note: RepairAgent encountered exceptions due to Middleware errors in 29 bugs, which were not re-run.
-
----
-
-## 🧫 V. Replicate Experiments
-This part is about running RepairAgent on full evaluation datasets to replicate our experiments. The process is the same as above; We just provide ready-to-use input files and instructions for replication.
-
-### Replicate Defects4J experiments
-1. Create the execution batches for Defects4J which will create lists of bugs to run on.
-    ```bash
-    python3.10 get_defects4j_list.py
-    ```
-    The result of this command can be found in `experimental_setups/batches`
-
-2. Run RepairAgent on each of the batches (either singularly or concurrently)
-    ```bash
-    ./run_on_defects4j.sh experimental_setups/batches/0 hyperparameters.json
-    # replace 0 with the desired batch number
-    ```
-
-3. Refer to sections `4.2 Retrieve Repair Logs and History` and `4.3 Analyze Logs` on how to analyze logs and summarize the results of the experiments.
-
-4. Furthermore, you can adapt the script `experimental_setups/generate_main_table.py` to generate the main comparative table (Table III in the paper)
-   - 4.1. You can also use `experimental_setups/draw_venn_chatrepair_clean.py` to draw a venn diagram to compare different techniques (Figure 6 of the paper)  
-5. You can use the script `experimental_setups/calculate_tokens.py` to calculate the costs of the agent (used to generate figure 9).
-
-6. You can use the script `experimental_setups/collect_plausible_patches_files.py` to get the list of plausible patches to inspect.
-
-
-### Replicate GitBugsJava Experiment
-GitBugsJava is another dataset for program repair evaluation.
- 
- 1. First,prepare the GitBugsJava VM. Since this dataset requires a heavy VM (at least 140 GB of disk), we could not include it in this artifact. We added more detailed instruction on how to prepare such VM. Please check the step by step process here: https://github.com/gitbugactions/gitbug-java
-
- 2. Copy the repository of RepairAgent inside the VM.
-
- 3. Run RepairAgent on the list of bugs by specifying the file `experimental_setups/gitbuglist` as the target file.
-
- 4. Use the same analysis scripts as part 1 (D4j replication) to analyse the results of the experiments.
-
-## 💬 VI. Help Us Improve RepairAgent
-
-If you use RepairAgent, we encourage you to report any issues, bugs, or documentation gaps. We are committed to addressing your concerns promptly.
-
-You can raise an issue directly in this repository, or for any queries, feel free to [email me](mailto:fi_bouzenia@esi.dz).
-
---- 
