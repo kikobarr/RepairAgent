@@ -303,7 +303,12 @@ class Agent(BaseAgent):
                                 logger.info("MUTANT OBJECT: " + fix_command + "\n\n")
                                 raise TypeError("Error: EXPECTED 'DICT', RECEIEVED 'STR' INSTEAD" + fix_command)
                             name, args = extract_command(fix_command, None, self.config)
-                            
+                            """
+                            Replication Note: Backup Plausible Patch Detection + Patch Type Logging
+                            This part of the code supports tagging the patch type and identifying it as a mutant patch.
+                            """
+                            if name == "write_fix" and isinstance(args, dict):
+                                args.setdefault("patch_type", "mutant")
                             exec_result = execute_command(name, args, self)
                             logger.info("---------------------------\nRESULT OF TRYING {} returned\n {} \n----------------------------\n\n".format(args, exec_result))
                             if " 0 failing test" in exec_result:

@@ -321,6 +321,14 @@ def run_interaction_loop(
         # and then having the decrement set it to 0, exiting the application.
         if command_name != "human_feedback":
             cycles_remaining -= 1
+
+        """
+        Replication Note: Backup Plausible Patch Detection + Patch Type Logging
+        This part of the code supports tagging the patch type.
+        The write_fix for the main patch is executed here within run_interaction_loop().
+        """
+        if command_name == "write_fix" and isinstance(command_args, dict):
+            command_args.setdefault("patch_type", "main")
         result = agent.execute(command_name, command_args, user_input)
 
         if result is not None:

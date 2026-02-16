@@ -608,7 +608,7 @@ def write_range(project_name:str, bug_index:int, changes_dicts: list, agent: Age
         }
     },
 )
-def write_fix(project_name:str, bug_index:int, changes_dicts: list, agent: Agent) -> str:
+def write_fix(project_name: str, bug_index: int, changes_dicts: list, agent: Agent, patch_type: str | None = None,) -> str:
     """Write a list of lines into a file to replace all lines between startline and endline
 
     Args:
@@ -626,6 +626,28 @@ def write_fix(project_name:str, bug_index:int, changes_dicts: list, agent: Agent
     bug_report =  agent.construct_bug_report_context()
     hypothesis = agent.construct_hypothesises_context()
     logger.info("PROBLEM LOCATION 1")
+
+    def _append_backup_plausible_patch(patch_obj: object, patch_type: str) -> None:
+        """
+        Replication Note: Backup Plausible Patch Detection + Patch Type Logging
+        Implements additive replication-safe plausible patch recording including the patch type.
+        This does not affect the existing plausible patch detection logic/artifacts.
+        It only appends a record to a separate file under the per-bug output directory.
+        """
+        try:
+            output_dir = getattr(agent, "output_dir", None) or "."
+            outpath = os.path.join(
+                output_dir,
+                "backup_plausible_patches_{}_{}.json".format(project_name, bug_index),
+            )
+            record = {"patch_type": patch_type, "patch": patch_obj}
+            with open(outpath, "a+") as exps:
+                exps.write(
+                    "### PLAUSIBLE FIX\n{}\n".format(json.dumps(record, default=str))
+                )
+        except Exception as e:
+            logger.info("Failed to record backup plausible patch: " + str(e))
+
     if len(changes_dicts) == 0:
         return "The fix you passed is empty. Please provide a non empty implementation of the fix."
     fix = "The fix consist of the following changes:\n{}".format(
@@ -650,6 +672,11 @@ def write_fix(project_name:str, bug_index:int, changes_dicts: list, agent: Agent
             logger.info("PROBLEM LOCATION 7")
             agent.dummy_fix = True
             if " 0 failing test" in run_ret:
+                """
+                Replication Note: Backup Plausible Patch Detection + Patch Type Logging
+                This part of the code supports tagging the patch type and identifying it as a dummy deletion patch.
+                """
+                _append_backup_plausible_patch(deletion_fix, "dummy_deletion")
                 return "Deleting the buggy lines fixed the problem and passed all the test cases. 0 failing tests."
     if len(missed_lines)!=0:
         logger.info("PROBLEM LOCATION 8")
@@ -657,6 +684,8 @@ def write_fix(project_name:str, bug_index:int, changes_dicts: list, agent: Agent
         logger.info("PROBLEM LOCATION 9")
         return "Your fix did not target all the buggy lines. Here is the list of all the buggy lines: {}. To help you, you can fill out the following the template to generate your fix {}".format(buggy_lines, fix_template)
     run_ret = execute_write_range(project_name, bug_index, changes_dicts, agent)
+    if " 0 failing test" in run_ret:
+        _append_backup_plausible_patch(changes_dicts, patch_type or "unknown")
     if 1 == 0:
         validation_result = validate_fix_against_hypothesis(bug_report, hypothesis, fix)
         return "First, we asked an expert about the fix you made and here is what the expert said:\n" + validation_result +\
