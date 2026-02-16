@@ -1,0 +1,18 @@
+FROM mcr.microsoft.com/devcontainers/base:jammy
+
+# Install Python, Java, SVN, Perl tooling
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+    python3-dev python3-pip \
+    openjdk-11-jdk dos2unix subversion cpanminus libdbi-perl \
+ && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY . /app
+RUN python3 -m pip install --no-cache-dir --upgrade pip setuptools wheel
+RUN pip3 install --no-cache-dir -r repair_agent/requirements.txt
+
+
+WORKDIR /app/repair_agent/defects4j
+RUN cpanm --installdeps . \
+ && ./init.sh

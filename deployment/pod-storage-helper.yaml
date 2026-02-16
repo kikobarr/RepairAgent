@@ -1,0 +1,36 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pod-storage-helper
+spec:
+  restartPolicy: Never
+  containers:
+    - name: s3-helper
+      image: rclone/rclone:1.66.0
+      command: ["sh", "-c", "sleep 20000"]
+      envFrom:
+        - secretRef:
+            name: s3-creds
+      env:
+        - name: RCLONE_CONFIG_NAUTILUS_TYPE
+          value: "s3"
+        - name: RCLONE_CONFIG_NAUTILUS_PROVIDER
+          value: "Ceph"
+        - name: RCLONE_CONFIG_NAUTILUS_ENDPOINT
+          value: "http://rook-ceph-rgw-nautiluss3.rook"
+        - name: RCLONE_CONFIG_NAUTILUS_ENV_AUTH
+          value: "true"
+      resources:
+        limits:
+          memory: 256Mi
+          cpu: 250m
+        requests:
+          memory: 128Mi
+          cpu: 100m
+      volumeMounts:
+        - name: repairagent-pvc
+          mountPath: /app/repair_agent/experimental_setups/experiment_1
+  volumes:
+    - name: repairagent-pvc
+      persistentVolumeClaim:
+        claimName: repairagent-pvc
