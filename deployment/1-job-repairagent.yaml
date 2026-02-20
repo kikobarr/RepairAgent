@@ -1,7 +1,7 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: repairagent-1
+  name: repairagent-run1
 spec:
   completionMode: Indexed
   completions: 100
