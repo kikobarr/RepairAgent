@@ -398,51 +398,55 @@ def get_user_feedback(
         A tuple of the user's feedback, the user's input, and the number of
         cycles remaining if the user has initiated a continuous cycle.
     """
-    # ### GET USER AUTHORIZATION TO EXECUTE COMMAND ###
-    # Get key press: Prompt the user to press enter to continue or escape
-    # to exit
-    logger.info(
-        f"Enter '{config.authorise_key}' to authorise command, "
-        f"'{config.authorise_key} -N' to run N continuous commands, "
-        f"'{config.exit_key}' to exit program, or enter feedback for "
-        f"{ai_config.ai_name}..."
-    )
+    # Replication Modification: Non-interactive terminal compatible
+    # The original is intended for interactive terminals to allow the user to authorize commands.
+    # The Kubernetes terminal is a non-interactive terminal and returns an error at this line.
 
-    user_feedback = None
-    user_input = ""
-    new_cycles_remaining = None
+    # # ### GET USER AUTHORIZATION TO EXECUTE COMMAND ###
+    # # Get key press: Prompt the user to press enter to continue or escape
+    # # to exit
+    # logger.info(
+    #     f"Enter '{config.authorise_key}' to authorise command, "
+    #     f"'{config.authorise_key} -N' to run N continuous commands, "
+    #     f"'{config.exit_key}' to exit program, or enter feedback for "
+    #     f"{ai_config.ai_name}..."
+    # )
 
-    while user_feedback is None:
-        # Get input from user
-        if config.chat_messages_enabled:
-            console_input = clean_input(config, "Waiting for your response...")
-        else:
-            console_input = clean_input(
-                config, Fore.MAGENTA + "Input:" + Style.RESET_ALL
-            )
+    # user_feedback = None
+    # user_input = ""
+    # new_cycles_remaining = None
 
-        # Parse user input
-        if console_input.lower().strip() == config.authorise_key:
-            user_feedback = UserFeedback.AUTHORIZE
-        elif console_input.lower().strip() == "":
-            logger.warn("Invalid input format.")
-        elif console_input.lower().startswith(f"{config.authorise_key} -"):
-            try:
-                user_feedback = UserFeedback.AUTHORIZE
-                new_cycles_remaining = abs(int(console_input.split(" ")[1]))
-            except ValueError:
-                logger.warn(
-                    f"Invalid input format. "
-                    f"Please enter '{config.authorise_key} -N'"
-                    " where N is the number of continuous tasks."
-                )
-        elif console_input.lower() in [config.exit_key, "exit"]:
-            user_feedback = UserFeedback.EXIT
-        else:
-            user_feedback = UserFeedback.TEXT
-            user_input = console_input
+    # while user_feedback is None:
+    #     # Get input from user
+    #     if config.chat_messages_enabled:
+    #         console_input = clean_input(config, "Waiting for your response...")
+    #     else:
+    #         console_input = clean_input(
+    #             config, Fore.MAGENTA + "Input:" + Style.RESET_ALL
+    #         )
 
-    return user_feedback, user_input, new_cycles_remaining
+    #     # Parse user input
+    #     if console_input.lower().strip() == config.authorise_key:
+    #         user_feedback = UserFeedback.AUTHORIZE
+    #     elif console_input.lower().strip() == "":
+    #         logger.warn("Invalid input format.")
+    #     elif console_input.lower().startswith(f"{config.authorise_key} -"):
+    #         try:
+    #             user_feedback = UserFeedback.AUTHORIZE
+    #             new_cycles_remaining = abs(int(console_input.split(" ")[1]))
+    #         except ValueError:
+    #             logger.warn(
+    #                 f"Invalid input format. "
+    #                 f"Please enter '{config.authorise_key} -N'"
+    #                 " where N is the number of continuous tasks."
+    #             )
+    #     elif console_input.lower() in [config.exit_key, "exit"]:
+    #         user_feedback = UserFeedback.EXIT
+    #     else:
+    #         user_feedback = UserFeedback.TEXT
+    #         user_input = console_input
+
+    # return user_feedback, user_input, new_cycles_remaining
 
 
 def construct_main_ai_config(

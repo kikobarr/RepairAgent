@@ -31,10 +31,7 @@ if $PYTHON_CMD -c "import sys; sys.exit(sys.version_info < (3, 10))"; then
     # Replication Modification: Non-interactive terminal compatible
     # The original line is intended for interactive terminals to allow the user to read output before the terminal closes.
     # The Kubernetes terminal is a non-interactive terminal and returns an error at this line.
-    # The modification adds a guard so it only executes for interactive terminals.
-    if [ -t 0 ]; then
-        read -p "Press any key to continue..."
-    fi
+    # read -p "Press any key to continue..."
 else
     echo "Python 3.10 or higher is required to run Auto GPT."
 fi
