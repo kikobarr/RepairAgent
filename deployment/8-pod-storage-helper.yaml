@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: Pod
 metadata:
-  name: pod-storage-helper
+  name: pod-storage-helper-8
 spec:
   restartPolicy: Never
   containers:
@@ -34,4 +34,4 @@ spec:
   volumes:
     - name: repairagent-pvc
       persistentVolumeClaim:
-        claimName: repairagent-pvc
+        claimName: repairagent-pvc-8

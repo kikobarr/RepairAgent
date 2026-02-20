@@ -20,17 +20,17 @@ Double check default namespace with:
 
 The RepairAgent requires an API key. Rather than using the .env baked into the image, we use Kubernetes Secrets. There are many ways to configure a job to access a secret. Since we only have a single API key, we are using env vars (envFrom: secretRef). 
 
-First, create a the .env file and put it in: 
+First, create a the .env file and put it in the project root. 
 
-Once created, confirm .env is in both the .Dockerignore and .gitignore.
+Confirm .env is in both the .Dockerignore and .gitignore.
 
 The only variable in the .env is the API key. Add:
 
 `OPENAI_API_KEY=put-your-key-here`
 
-Then, add the API key as secret to the namespace by running this from the root of the project (RepairAgent, not repair_agent) where .env exists:
+Then, add the API key as secret to the namespace by running this from repair_agent/ where .env exists:
 
-`kubectl create secret generic repairagent-env --from-env-file=repair_agent/.env`
+`kubectl create secret generic repairagent-env --from-env-file=.env`
 
 Check whether secret was successfully created:
 
@@ -40,7 +40,7 @@ If you update .env, then re-run the create secret command with
 
 ```
 kubectl create secret generic repairagent-env \
-  --from-env-file=repair_agent/.env \
+  --from-env-file=.env \
   --dry-run=client -o yaml | kubectl apply -f -
 ```
 
@@ -66,7 +66,7 @@ source .venv/bin/activate
 pip install tiktoken
 ```
 
-Store the tiktoken chache locally:
+While still in the venv, run this to stash the cache locally:
 
 ```bash
 mkdir -p /tmp/tiktoken_cache
@@ -100,16 +100,11 @@ For some reason, this is sometimes slow to spin up. Check the status with:
 
 Copy /tmp/tiktoken_cache into the PVC using the helper pod with: 
 
-`kubectl cp /tmp/tiktoken_cache volume-helper-pod:/app/repair_agent/experimental_setups/experiment_1/tiktoken_cache`
+`kubectl cp /tmp/tiktoken_cache pod-storage-helper:/app/repair_agent/experimental_setups/experiment_1/tiktoken_cache`
 
-Enter the interactive shell:
+Enter the interactive shell to check that the folder was copied successfully:
 
-`kubectl exec -it volume-helper-pod -- /bin/sh`
-
-```bash
-cd app/repair_agent/experimental_setups/experiment_1
-mkdir logs plausible_patches mutations_history responses saved_contexts
-```
+`kubectl exec -it pod-storage-helper -- /bin/sh`
 
 `CTRL + D` to exit the interactive shell. 
 
@@ -192,7 +187,7 @@ WAIT! Make sure to double check the job yaml has the following:
 
 Then, from deployment/ run: 
 
-`kubectl create -f repairagent_job_with_pvc_indexed.yaml`
+`kubectl create -f job-repairagent.yaml`
 
 Here are some status checks you can run: 
 
@@ -320,3 +315,17 @@ Respond strictly with JSON. The JSON should be compatible with the TypeScript ty
     ```
 ```
 
+### Deployment Checklist
+
+**Run Job**
+[] kubectl create -f 9-configmap-bugs.yaml
+[] kubectl create -f 9-pvc-repairagent.yaml
+[] kubectl create -f 9-pod-storage-helper.yaml
+[] kubectl describe configmap configmap-bugs-list-9
+[] kubectl cp /tmp/tiktoken_cache pod-storage-helper-9:/app/repair_agent/experimental_setups/experiment_1/tiktoken_cache
+[] kubectl create -f 9-job-repairagent.yaml
+[] kubectl delete pod pod-storage-helper-9
+
+**Extract Logs**
+[] kubectl create -f 9-pod-storage-helper.yaml
+[] kubectl cp pod-storage-helper-9:/app/repair_agent/experimental_setups/experiment_1/ /Users/kb440/Programming/Research_Repair_Agent/Results/run_9

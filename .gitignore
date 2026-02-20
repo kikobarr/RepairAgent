@@ -1,3 +1,6 @@
+# Secrets
+repair_agent/.env
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -171,3 +174,6 @@ repair_agent/response_content.txt
 defects4j/
 ../data/buggy-lines defects4j
 ../data/buggy-methods defects4j
+
+# macOS Finder metadata
+.DS_Store

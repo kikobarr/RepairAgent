@@ -4,18 +4,19 @@ metadata:
   name: repairagent
 spec:
   completionMode: Indexed
-  completions: 12
+  completions: 100
   parallelism: 12
-  backoffLimit: 1
-  # container times out after 3 hours
-  activeDeadlineSeconds: 10800
+  backoffLimitPerIndex: 1
   template:
     spec:
-      terminationGracePeriodSeconds: 600
+      # per-pod timeout (each pod times out after 3 hours)
+      activeDeadlineSeconds: 10800
+      # terminationGracePeriodSeconds: 600
+      # shareProcessNamespace: true
       restartPolicy: Never
       containers:
         - name: repairagent
-          image: gitlab-registry.nrp-nautilus.io/humboldt/repairagent:0.11
+          image: gitlab-registry.nrp-nautilus.io/humboldt/repairagent:0.14
           workingDir: /app/repair_agent
           envFrom:
             - secretRef:
@@ -67,98 +68,116 @@ spec:
               gpt-3.5-turbo-0125
 
           resources:
-            limits:
-              memory: 700Mi
-              cpu: "1.5"
             requests:
-              memory: 700Mi
-              cpu: "1.5"
+              memory: 1.5Gi
+              cpu: "2"
+            limits: 
+              memory: 1.5Gi
+              cpu: "2"
 
-        - name: rclone-sync
-          image: rclone/rclone:v1.72-stable
-          envFrom:
-            - secretRef:
-                name: s3-creds
-          env:
-            - name: RCLONE_CONFIG_NAUTILUS_TYPE
-              value: "s3"
-            - name: RCLONE_CONFIG_NAUTILUS_PROVIDER
-              value: "Ceph"
-            - name: RCLONE_CONFIG_NAUTILUS_ENDPOINT
-              value: "http://rook-ceph-rgw-nautiluss3.rook"
-            - name: RCLONE_CONFIG_NAUTILUS_ENV_AUTH
-              value: "true"
+        # - name: rclone-sync
+        #   image: rclone/rclone:v1.72-stable
+        #   envFrom:
+        #     - secretRef:
+        #         name: s3-creds
+        #   env:
+        #     - name: RCLONE_CONFIG_NAUTILUS_TYPE
+        #       value: "s3"
+        #     - name: RCLONE_CONFIG_NAUTILUS_PROVIDER
+        #       value: "Ceph"
+        #     - name: RCLONE_CONFIG_NAUTILUS_ENDPOINT
+        #       value: "http://rook-ceph-rgw-nautiluss3.rook"
+        #     - name: RCLONE_CONFIG_NAUTILUS_ENV_AUTH
+        #       value: "true"
 
-            - name: JOB_COMPLETION_INDEX
-              valueFrom:
-                fieldRef:
-                  fieldPath: metadata.annotations['batch.kubernetes.io/job-completion-index']
-          volumeMounts:
-            - name: repairagent-logs
-              mountPath: /app/repair_agent/experimental_setups/experiment_1
-            - name: bugs-list
-              mountPath: /config
-              readOnly: true
+        #     - name: JOB_COMPLETION_INDEX
+        #       valueFrom:
+        #         fieldRef:
+        #           fieldPath: metadata.annotations['batch.kubernetes.io/job-completion-index']
+        #   volumeMounts:
+        #     - name: repairagent-logs
+        #       mountPath: /app/repair_agent/experimental_setups/experiment_1
+        #     - name: bugs-list
+        #       mountPath: /config
+        #       readOnly: true
 
-          command: ["/bin/sh", "-lc"]
-          args:
-            - >
-              set -eu;
-              BUGS_LIST_PATH=/config/bugs_list.txt;
-              LINE_NUMBER=$((JOB_COMPLETION_INDEX + 1));
-              sed -n "${LINE_NUMBER}p" "$BUGS_LIST_PATH" > /tmp/bugs_list_one.txt;
-              if [ ! -s /tmp/bugs_list_one.txt ]; then
-                echo "No bug line found for index ${JOB_COMPLETION_INDEX} (line ${LINE_NUMBER}).";
-                exit 1;
-              fi;
-              BUG_LINE="$(cat /tmp/bugs_list_one.txt)";
-              PROJECT_NAME="$(printf '%s' "$BUG_LINE" | awk '{print $1}')";
-              BUG_ID="$(printf '%s' "$BUG_LINE" | awk '{print $2}')";
-              if [ -z "${PROJECT_NAME:-}" ] || [ -z "${BUG_ID:-}" ]; then
-                echo "Invalid bug line: ${BUG_LINE}";
-                exit 1;
-              fi;
-              BUG_DIR=/app/repair_agent/experimental_setups/experiment_1/${PROJECT_NAME}_${BUG_ID};
-              TIMING_CSV_PATH="${BUG_DIR}/timing.csv";
-              while [ ! -f "$TIMING_CSV_PATH" ]; do
-                sleep 10;
-              done;
-              echo "[DONEFILE] running rclone...";
-              rclone sync "$BUG_DIR" "nautilus:repair-agent-bucket/${PROJECT_NAME}_${BUG_ID}";
+        #   command: ["/bin/sh", "-lc"]
+        #   args:
+        #     - >
+        #       set -eu;
+        #       BUGS_LIST_PATH=/config/bugs_list.txt;
+        #       LINE_NUMBER=$((JOB_COMPLETION_INDEX + 1));
+        #       sed -n "${LINE_NUMBER}p" "$BUGS_LIST_PATH" > /tmp/bugs_list_one.txt;
+        #       if [ ! -s /tmp/bugs_list_one.txt ]; then
+        #         echo "No bug line found for index ${JOB_COMPLETION_INDEX} (line ${LINE_NUMBER}).";
+        #         exit 1;
+        #       fi;
+        #       BUG_LINE="$(cat /tmp/bugs_list_one.txt)";
+        #       PROJECT_NAME="$(printf '%s' "$BUG_LINE" | awk '{print $1}')";
+        #       BUG_ID="$(printf '%s' "$BUG_LINE" | awk '{print $2}')";
+        #       if [ -z "${PROJECT_NAME:-}" ] || [ -z "${BUG_ID:-}" ]; then
+        #         echo "Invalid bug line: ${BUG_LINE}";
+        #         exit 1;
+        #       fi;
+        #       BUG_DIR=/app/repair_agent/experimental_setups/experiment_1/${PROJECT_NAME}_${BUG_ID};
+        #       TIMING_CSV_PATH="${BUG_DIR}/timing.csv";
+        #       sync_failed() {
+        #         echo "[FAILED] running rclone...";
+        #         rclone sync "$BUG_DIR" "nautilus:repair-agent-bucket/failed/${PROJECT_NAME}_${BUG_ID}" \
+        #           --transfers 4 --checkers 8 --contimeout 15s --timeout 5m --retries 2 --low-level-retries 1 \
+        #           || true;
+        #       };
+        #       trap 'sync_failed; exit 0' INT TERM;
+        #       while true; do
+        #         if [ -f "$TIMING_CSV_PATH" ]; then
+        #           echo "[DONEFILE] running rclone...";
+        #           rclone sync "$BUG_DIR" "nautilus:repair-agent-bucket/${PROJECT_NAME}_${BUG_ID}" \
+        #             --transfers 4 --checkers 8 --contimeout 15s --timeout 5m --retries 2 --low-level-retries 1;
+        #           exit 0;
+        #         fi;
+        #         if ! ps | grep -q '[r]un_on_defects4j.sh'; then
+        #           echo "[MAIN EXIT] timing.csv not found; marking failed.";
+        #           sync_failed;
+        #           exit 0;
+        #         fi;
+        #         sleep 10;
+        #       done;
 
-          lifecycle:
-            preStop:
-              exec:
-                command:
-                  - /bin/sh
-                  - -lc
-                  - >
-                    set -eu;
-                    BUGS_LIST_PATH=/config/bugs_list.txt;
-                    LINE_NUMBER=$((JOB_COMPLETION_INDEX + 1));
-                    sed -n "${LINE_NUMBER}p" "$BUGS_LIST_PATH" > /tmp/bugs_list_one.txt;
-                    if [ ! -s /tmp/bugs_list_one.txt ]; then
-                      echo "No bug line found for index ${JOB_COMPLETION_INDEX} (line ${LINE_NUMBER}).";
-                      exit 1;
-                    fi;
-                    BUG_LINE="$(cat /tmp/bugs_list_one.txt)";
-                    PROJECT_NAME="$(printf '%s' "$BUG_LINE" | awk '{print $1}')";
-                    BUG_ID="$(printf '%s' "$BUG_LINE" | awk '{print $2}')";
-                    if [ -z "${PROJECT_NAME:-}" ] || [ -z "${BUG_ID:-}" ]; then
-                      echo "Invalid bug line: ${BUG_LINE}";
-                      exit 1;
-                    fi;
-                    BUG_DIR=/app/repair_agent/experimental_setups/experiment_1/${PROJECT_NAME}_${BUG_ID};
-                    echo "[PRESTOP] running rclone...";
-                    rclone sync "$BUG_DIR" "nautilus:repair-agent-bucket/failed/${PROJECT_NAME}_${BUG_ID}";
+        #   lifecycle:
+        #     preStop:
+        #       exec:
+        #         command:
+        #           - /bin/sh
+        #           - -lc
+        #           - >
+        #             set -eu;
+        #             BUGS_LIST_PATH=/config/bugs_list.txt;
+        #             LINE_NUMBER=$((JOB_COMPLETION_INDEX + 1));
+        #             sed -n "${LINE_NUMBER}p" "$BUGS_LIST_PATH" > /tmp/bugs_list_one.txt;
+        #             if [ ! -s /tmp/bugs_list_one.txt ]; then
+        #               echo "No bug line found for index ${JOB_COMPLETION_INDEX} (line ${LINE_NUMBER}).";
+        #               exit 1;
+        #             fi;
+        #             BUG_LINE="$(cat /tmp/bugs_list_one.txt)";
+        #             PROJECT_NAME="$(printf '%s' "$BUG_LINE" | awk '{print $1}')";
+        #             BUG_ID="$(printf '%s' "$BUG_LINE" | awk '{print $2}')";
+        #             if [ -z "${PROJECT_NAME:-}" ] || [ -z "${BUG_ID:-}" ]; then
+        #               echo "Invalid bug line: ${BUG_LINE}";
+        #               exit 1;
+        #             fi;
+        #             BUG_DIR=/app/repair_agent/experimental_setups/experiment_1/${PROJECT_NAME}_${BUG_ID};
+        #             echo "[PRESTOP] running rclone...";
+        #             rclone sync "$BUG_DIR" "nautilus:repair-agent-bucket/failed/${PROJECT_NAME}_${BUG_ID}" \
+        #               --transfers 4 --checkers 8 --contimeout 15s --timeout 5m --retries 2 --low-level-retries 1 \
+        #               || true;
 
-          resources:
-            limits:
-              memory: 200Mi
-              cpu: "0.5"
-            requests:
-              memory: 200Mi
-              cpu: "0.5"
+        #   resources:
+        #     limits:
+        #       memory: 200Mi
+        #       cpu: "0.5"
+        #     requests:
+        #       memory: 200Mi
+        #       cpu: "0.5"
 
       volumes:
         - name: repairagent-logs
