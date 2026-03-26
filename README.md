@@ -2,7 +2,39 @@
 
 The RepairAgent Replication Project is an undergraduate research effort to replicate and extend a large language model based automated program repair (APR) coding agent from *[RepairAgent: An Autonomous, LLM-Based Agent for Program Repair (ICSE 2023)](https://arxiv.org/abs/2403.17134)*. The original work is a highly cited study evaluated on over 800 real world bugs from the Defects4J dataset. RepairAgent is powered by the OpenAI Chat Completions API and integrates coding tools to autonomously diagnose and repair software defects. 
 
-This version runs on the National Research Platform (NRP) Nautilus Kubernetes cluster, which enables parallel execution of RepairAgent across individual bugs, reducing total experimentation time by months. The code is baked into a Docker image and the logs / data are output to a PVC with a back up sync to an S3 bucket. 
+There are two ways to run the RepairAgent: 
+  1. VS Code Dev Container
+  2. Kubernetes
+
+# VS Code Dev Container Instructions
+
+Clone and prepare:
+
+git clone https://github.com/kikobarr/RepairAgent.git
+
+Open in VS Code, then click "Reopen in Container" when prompted (or use the Command Palette: Dev Containers: Reopen in Container).
+
+First, create a .env file and put it in the project root.
+
+Confirm .env is in both the .Dockerignore and .gitignore.
+
+The only variable in the .env is the API key. Add:
+
+`OPENAI_API_KEY=put-your-key-here`
+
+Add the bugs you want to run to the bugs list in Repair_Agent/repair_agent/experimental_setups/bugs_list and save. You can see all the valid bugs in Defects4J in Repair_Agent/deployment/bugs_list_all.txt. Make sure they have a new line between each bug. It might be easier to use the text files in Repair_Agent/repair_agent/experimental_setups/batches/ which break all 800+ bugs into 5 files. 
+
+Then, in the terminal run: 
+```bash
+cd repair_agent
+./run_on_defects4j.sh experimental_setups/bugs_list hyperparams.json gpt-3.5-turbo-0125
+```
+
+If it worked correctly, you will see a new experiment folder was created in Repair_Agent/repair_agent/experimental_setups/ and that logs are being output to the terminal. Some bugs will take up to 2 hours to run successfully. If you see a bug is running for more than two hours or if you see that it is not progressing through its 30 cycle limit, then it is most likely hung. Ctrl + C on Mac to end the execution in the terminal, and remove it or try running it again. 
+
+# Kubernetes Instructions
+
+This version runs on the National Research Platform (NRP) Nautilus Kubernetes cluster, which enables parallel execution of RepairAgent across individual bugs, reducing total experimentation time from months to a few hours. The code is baked into a Docker image and the logs / data are output to a PVC with a back up sync to an S3 bucket. 
 
 ## Step 1: Set default namespace
 
@@ -18,7 +50,7 @@ Double check default namespace with:
 
 ## Step 2: Add API key to secrets
 
-The RepairAgent requires an API key. Rather than using the .env baked into the image, we use Kubernetes Secrets. There are many ways to configure a job to access a secret. Since we only have a single API key, we are using env vars (envFrom: secretRef). 
+The RepairAgent requires an API key. We use Kubernetes Secrets. There are many ways to configure a job to access a secret. Since we only have a single API key, we are using env vars (envFrom: secretRef). 
 
 First, create a the .env file and put it in the project root. 
 
